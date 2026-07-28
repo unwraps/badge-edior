@@ -25,12 +25,55 @@
 	let sidebarOpen = $state(true);
 	let panelCollapsed = $state(false);
 	let baseScale = $state(1.0);
+	let topFontName = $state('Helvetiker Regular');
+	let bottomFontName = $state('Helvetiker Regular');
+	let topGoogleFontName = $state('');
+	let bottomGoogleFontName = $state('');
 	// Status presets
 	const presets = [
 		{ name: 'Do not disturb', text: 'Do not disturb', color: '#FF0000' },
 		{ name: 'Ask', text: 'Ask', color: '#FFA500' },
 		{ name: 'Active', text: 'Active', color: '#00AA00' },
 		{ name: 'Join Me', text: 'Join Me', color: '#00CCFF' }
+	];
+
+	const FONT_BASE_URL = 'https://threejs.org/examples/fonts/';
+	const availableFonts = [
+		// Helvetiker
+		{ name: 'Helvetiker Regular', path: '/fonts/helvetiker_regular.typeface.json' },
+		{ name: 'Helvetiker Bold', path: FONT_BASE_URL + 'helvetiker_bold.typeface.json' },
+		// Optimer
+		{ name: 'Optimer Regular', path: FONT_BASE_URL + 'optimer_regular.typeface.json' },
+		{ name: 'Optimer Bold', path: FONT_BASE_URL + 'optimer_bold.typeface.json' },
+		// Gentilis
+		{ name: 'Gentilis Regular', path: FONT_BASE_URL + 'gentilis_regular.typeface.json' },
+		{ name: 'Gentilis Bold', path: FONT_BASE_URL + 'gentilis_bold.typeface.json' },
+		// Droid Sans
+		{ name: 'Droid Sans Regular', path: FONT_BASE_URL + 'droid/droid_sans_regular.typeface.json' },
+		{ name: 'Droid Sans Bold', path: FONT_BASE_URL + 'droid/droid_sans_bold.typeface.json' },
+		{ name: 'Droid Sans Mono Regular', path: FONT_BASE_URL + 'droid/droid_sans_mono_regular.typeface.json' },
+		// Droid Serif
+		{ name: 'Droid Serif Regular', path: FONT_BASE_URL + 'droid/droid_serif_regular.typeface.json' },
+		{ name: 'Droid Serif Bold', path: FONT_BASE_URL + 'droid/droid_serif_bold.typeface.json' }
+	];
+
+	const GOOGLE_FONT_BASE = 'https://unpkg.com/@compai/font-';
+	const googleFonts = [
+		'Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Inter', 'Poppins',
+		'Raleway', 'Ubuntu', 'Oswald', 'Merriweather', 'Nunito', 'Playfair Display',
+		'PT Sans', 'Noto Sans', 'Source Sans Pro', 'Work Sans', 'Fira Sans',
+		'DM Sans', 'Karla', 'Manrope', 'Figtree', 'Outfit', 'Josefin Sans',
+		'Cabin', 'Archivo', 'Barlow', 'Overpass', 'Space Grotesk', 'Rubik',
+		'Red Hat Display', 'Sora', 'Syne', 'Public Sans', 'Exo 2',
+		'Inconsolata', 'DM Mono', 'JetBrains Mono', 'Fira Code', 'Space Mono',
+		'Source Code Pro', 'Roboto Mono', 'IBM Plex Mono',
+		'Crimson Pro', 'Domine', 'EB Garamond', 'Literata', 'Lora',
+		'Abril Fatface', 'Bitter', 'Arvo', 'Libre Baskerville', 'Cormorant',
+		'Titan One', 'Lobster', 'Pacifico', 'Dancing Script', 'Great Vibes',
+		'Indie Flower', 'Caveat', 'Shadows Into Light', 'Permanent Marker',
+		'Righteous', 'Concert One', 'Fredoka One', 'Bebas Neue',
+		'Anton', 'Alfa Slab One', 'Patua One', 'Paytone One',
+		'Cinzel', 'Prata', 'Playfair Display SC', 'Unna', 'Old Standard TT'
 	];
 
 	let scene: THREE.Scene;
@@ -425,6 +468,48 @@
 		}
 	}
 
+	function loadSelectedFont(target: 'top' | 'bottom') {
+		const name = target === 'top' ? topFontName : bottomFontName;
+		const font = availableFonts.find((f) => f.name === name);
+		if (!font) return;
+		fontLoader.load(font.path, (loadedFont) => {
+			if (target === 'top') {
+				topFont = loadedFont;
+				updateTopText();
+			} else {
+				bottomFont = loadedFont;
+				updateBottomText();
+			}
+		});
+	}
+
+	function loadGoogleFont(target: 'top' | 'bottom') {
+		const name = target === 'top' ? topGoogleFontName : bottomGoogleFontName;
+		if (!name) return;
+		const kebabName = name.toLowerCase().replace(/\s+/g, '-');
+		const url = `${GOOGLE_FONT_BASE}${kebabName}/data/typefaces/normal-400.json`;
+		fetch(url)
+			.then((res) => {
+				if (!res.ok) throw new Error(`Font "${name}" not found`);
+				return res.json();
+			})
+			.then((data) => {
+				const loadedFont = fontLoader.parse(data);
+				if (target === 'top') {
+					topFont = loadedFont;
+					updateTopText();
+				} else {
+					bottomFont = loadedFont;
+					updateBottomText();
+				}
+			})
+			.catch((err) => {
+				const msg = err.message || 'Failed to load font';
+				if (target === 'top') topFontError = msg;
+				else bottomFontError = msg;
+			});
+	}
+
 	function handleBottomFontChange(e: Event) {
 		const target = e.target as HTMLInputElement;
 		const file = target.files?.[0];
@@ -600,13 +685,44 @@
 			</div>
 			<div class="collapse-content px-0 pb-2">
 				<div class="flex flex-col gap-2">
+					<!-- Top Font -->
 					<div class="form-control w-full">
-						<label for="top-font" class="label py-1">
+						<label for="top-font-select" class="label py-1">
 							<span class="label-text text-xs font-semibold">Top Font</span>
+						</label>
+						<select
+							id="top-font-select"
+							class="select select-bordered select-sm w-full"
+							bind:value={topFontName}
+							onchange={() => loadSelectedFont('top')}
+						>
+							{#each availableFonts as font}
+								<option value={font.name}>{font.name}</option>
+							{/each}
+						</select>
+					</div>
+					<!-- Top Font from Google Fonts collection -->
+					<div class="form-control w-full">
+						<select
+							id="top-google-font"
+							class="select select-bordered select-xs w-full"
+							bind:value={topGoogleFontName}
+							onchange={() => loadGoogleFont('top')}
+						>
+							<option value="">+ Google Font...</option>
+							{#each googleFonts as name}
+								<option value={name}>{name}</option>
+							{/each}
+						</select>
+					</div>
+					<!-- Top Font custom upload -->
+					<div class="form-control w-full">
+						<label for="top-font" class="label py-0.5">
+							<span class="label-text text-[10px] text-base-content/50">or upload custom .json</span>
 						</label>
 						<input
 							id="top-font"
-							class="file-input-bordered file-input file-input-sm w-full"
+							class="file-input-bordered file-input file-input-xs w-full"
 							type="file"
 							accept=".json"
 							onchange={handleTopFontChange}
@@ -620,13 +736,45 @@
 							<span>{topFontError}</span>
 						</div>
 					{/if}
+					<div class="divider my-0.5"></div>
+					<!-- Bottom Font -->
 					<div class="form-control w-full">
-						<label for="bottom-font" class="label py-1">
+						<label for="bottom-font-select" class="label py-1">
 							<span class="label-text text-xs font-semibold">Bottom Font</span>
+						</label>
+						<select
+							id="bottom-font-select"
+							class="select select-bordered select-sm w-full"
+							bind:value={bottomFontName}
+							onchange={() => loadSelectedFont('bottom')}
+						>
+							{#each availableFonts as font}
+								<option value={font.name}>{font.name}</option>
+							{/each}
+						</select>
+					</div>
+					<!-- Bottom Font from Google Fonts collection -->
+					<div class="form-control w-full">
+						<select
+							id="bottom-google-font"
+							class="select select-bordered select-xs w-full"
+							bind:value={bottomGoogleFontName}
+							onchange={() => loadGoogleFont('bottom')}
+						>
+							<option value="">+ Google Font...</option>
+							{#each googleFonts as name}
+								<option value={name}>{name}</option>
+							{/each}
+						</select>
+					</div>
+					<!-- Bottom Font custom upload -->
+					<div class="form-control w-full">
+						<label for="bottom-font" class="label py-0.5">
+							<span class="label-text text-[10px] text-base-content/50">or upload custom .json</span>
 						</label>
 						<input
 							id="bottom-font"
-							class="file-input-bordered file-input file-input-sm w-full"
+							class="file-input-bordered file-input file-input-xs w-full"
 							type="file"
 							accept=".json"
 							onchange={handleBottomFontChange}
