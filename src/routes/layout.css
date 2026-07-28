@@ -1,2 +1,114 @@
+/* @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Syne:wght@400..800&display=swap');
+@import '@fontsource/noto-sans-thai/index.css';
+@import '@fontsource/noto-sans/index.css'; */
+@import url('https://fonts.googleapis.com/css2?family=Google+Sans:ital,opsz,wght@0,17..18,400..700;1,17..18,400..700&family=Syne:wght@400..800&display=swap');
+
 @import 'tailwindcss';
+
+@custom-variant hover (&:hover);
+@custom-variant group-hover (.group:hover &);
+
 @plugin 'daisyui';
+
+@theme {
+	--font-sans: var(--font-body-family);
+	--font-heading: var(--font-heading-family);
+	--font-abstract: var(--font-abstract-family);
+	--spacing-page-mobile: 1rem;
+	--spacing-page-pc: 2rem;
+	--radius-box: 0rem;
+	--radius-field: 0rem;
+	--radius-selector: 0rem;
+}
+
+:root {
+	--font-heading-family: 'Google Sans', sans-serif;
+	--font-body-family: 'Google Sans', sans-serif;
+	--font-abstract-family: 'Syne', sans-serif;
+}
+
+@plugin 'daisyui/theme' {
+	name: 'dark';
+	default: true;
+	prefersdark: true;
+	color-scheme: 'dark';
+	--color-base-100: oklch(14% 0.004 49.25);
+	--color-base-200: oklch(21% 0.006 56.043);
+	--color-base-300: oklch(26% 0.007 34.298);
+	--color-base-content: oklch(97% 0.001 106.424);
+	--color-primary: oklch(87% 0.169 91.605);
+	--color-primary-content: oklch(27% 0.077 45.635);
+	--color-secondary: oklch(90% 0.182 98.111);
+	--color-secondary-content: oklch(28% 0.066 53.813);
+	--color-accent: oklch(80% 0.105 251.813);
+	--color-accent-content: oklch(28% 0.091 267.935);
+	--color-neutral: oklch(26% 0.007 34.298);
+	--color-neutral-content: oklch(98% 0.001 106.423);
+	--color-info: oklch(70% 0.165 254.624);
+	--color-info-content: oklch(28% 0.091 267.935);
+	--color-success: oklch(79% 0.209 151.711);
+	--color-success-content: oklch(26% 0.065 152.934);
+	--color-warning: oklch(75% 0.183 55.934);
+	--color-warning-content: oklch(26% 0.079 36.259);
+	--color-error: oklch(71% 0.202 349.761);
+	--color-error-content: oklch(28% 0.109 3.907);
+	--radius-selector: 0rem;
+	--radius-field: 0rem;
+	--radius-box: 0rem;
+	--size-selector: 0.28125rem;
+	--size-field: 0.21875rem;
+	--border: 1.5px;
+	--depth: 1;
+	--noise: 0;
+}
+
+@plugin 'daisyui/theme' {
+	name: 'light';
+	default: true;
+	prefersdark: false;
+	color-scheme: 'light';
+	--color-base-100: oklch(98% 0 0);
+	--color-base-200: oklch(96% 0.001 286.375);
+	--color-base-300: oklch(92% 0.004 286.32);
+	--color-base-content: oklch(21% 0.006 285.885);
+	--color-primary: oklch(76% 0.139 62.29);
+	--color-primary-content: oklch(98% 0 0);
+	--color-secondary: oklch(45% 0.02 286.067);
+	--color-secondary-content: oklch(98% 0 0);
+	--color-accent: oklch(50% 0.191 22.216);
+	--color-accent-content: oklch(98% 0 0);
+	--color-neutral: oklch(37% 0.013 285.805);
+	--color-neutral-content: oklch(98% 0 0);
+	--color-info: oklch(52% 0.158 241.966);
+	--color-info-content: oklch(98% 0 0);
+	--color-success: oklch(52% 0.145 163.225);
+	--color-success-content: oklch(98% 0 0);
+	--color-warning: oklch(82% 0.15 80);
+	--color-warning-content: oklch(20% 0.04 75);
+	--color-error: oklch(52% 0.22 0.584);
+	--color-error-content: oklch(98% 0 0);
+	--radius-selector: 0rem;
+	--radius-field: 0rem;
+	--radius-box: 0rem;
+	--size-selector: 0.25rem;
+	--size-field: 0.25rem;
+	--border: 1px;
+	--depth: 1;
+	--noise: 0;
+}
+
+.font-lang-en {
+	font-family: var(--font-body-family);
+}
+
+.font-lang-th {
+	font-family: var(--font-body-family);
+}
+
+@utility heading-1 {
+	@apply font-heading text-3xl font-extrabold md:text-4xl;
+}
+
+@utility page-container {
+	@apply mx-auto flex w-full max-w-7xl flex-col gap-8 p-page-mobile md:p-page-pc;
+}
