@@ -8,6 +8,13 @@
 	import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js';
 	import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
 
+	type ToastType = 'success' | 'error' | 'info';
+	interface Toast {
+		id: number;
+		message: string;
+		type: ToastType;
+	}
+
 	let canvas: HTMLCanvasElement;
 	let topText = $state('TOP TEXT');
 	let bottomText = $state('BOTTOM TEXT');
@@ -29,6 +36,14 @@
 	let bottomFontName = $state('Helvetiker Regular');
 	let topGoogleFontName = $state('');
 	let bottomGoogleFontName = $state('');
+	let toasts = $state<Toast[]>([]);
+	let toastId = 0;
+	let topTextSize = $state(0.6);
+	let bottomTextSize = $state(0.6);
+	let plateThickness = $state(2);
+	let showHelpModal = $state(false);
+	let savedDesigns = $state<{ name: string; data: string }[]>([]);
+	let activeTab = $state<'editor' | 'saved' | 'help'>('editor');
 	// Status presets
 	const presets = [
 		{ name: 'Do not disturb', text: 'Do not disturb', color: '#FF0000' },
@@ -97,12 +112,12 @@
 	const topPlateH = 16 - 0.5; // 15.5
 	const bottomPlateW = 105 - 0.5; // 104.5
 	const bottomPlateH = 10 - 0.5; // 9.5
-	const plateD = 2;
+	let plateD = $state(2);
 	const textD = 2; // Extrusion depth
 	const gap = 3;
 
-	const topY = topPlateH / 2 + gap / 2;
-	const bottomY = -(bottomPlateH / 2 + gap / 2);
+	const topY = $derived(topPlateH / 2 + gap / 2);
+	const bottomY = $derived(-(bottomPlateH / 2 + gap / 2));
 
 	const plateMaterial = new THREE.MeshStandardMaterial({ color: 0x444444 });
 	const textMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff });
@@ -122,6 +137,16 @@
 			updateTopText();
 			updateBottomText();
 		});
+
+		// Load saved designs from localStorage
+		const saved = localStorage.getItem('badgeDesigns');
+		if (saved) {
+			try {
+				savedDesigns = JSON.parse(saved);
+			} catch (e) {
+				console.error('Failed to load saved designs');
+			}
+		}
 
 		return () => {
 			resizeObserver?.disconnect();
@@ -206,7 +231,7 @@
 			topTextMesh.geometry.dispose();
 		}
 
-		const size = topPlateH * 0.6;
+		const size = topPlateH * topTextSize;
 		const textGeo = new TextGeometry(topText, {
 			font: topFont,
 			size: size,
@@ -248,7 +273,7 @@
 		}
 		if (!bottomText) return;
 
-		const size = bottomPlateH * 0.6;
+		const size = bottomPlateH * bottomTextSize;
 		const textGeo = new TextGeometry(bottomText, {
 			font: bottomFont,
 			size: size,
@@ -324,6 +349,14 @@
 		renderer.render(scene, camera);
 	}
 
+	function addToast(message: string, type: ToastType = 'info') {
+		const id = toastId++;
+		toasts.push({ id, message, type });
+		setTimeout(() => {
+			toasts = toasts.filter((t) => t.id !== id);
+		}, 3000);
+	}
+
 	function exportSTL() {
 		exporting = true;
 		// Use setTimeout to let the UI update before the potentially heavy export
@@ -334,27 +367,120 @@
 				badgeGroup.position.set(0, 0, 0);
 
 				const exporter = new STLExporter();
-				const stlString = exporter.parse(badgeGroup);
+				const stlString = exporter.parse(badgeGroup, { binary: true });
 
 				// Restore position
 				badgeGroup.position.copy(prevPos);
 
-				const blob = new Blob([stlString], { type: 'text/plain' });
+				const blob = new Blob([stlString], { type: 'application/octet-stream' });
 				const url = URL.createObjectURL(blob);
 				const link = document.createElement('a');
 				link.style.display = 'none';
 				link.href = url;
-				link.download = 'badge.stl';
+				const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+				link.download = `badge-${timestamp}.stl`;
 				document.body.appendChild(link);
 				link.click();
 				document.body.removeChild(link);
 				URL.revokeObjectURL(url);
+				addToast('STL exported successfully!', 'success');
 			} catch (e) {
 				console.error('Export failed:', e);
+				addToast('Export failed. See console for details.', 'error');
 			} finally {
 				exporting = false;
 			}
 		}, 50);
+	}
+
+	function saveDesign() {
+		const name = prompt('Enter a name for this design:');
+		if (!name) return;
+
+		const designData = {
+			topText,
+			bottomText,
+			circleColor,
+			topFontName,
+			bottomFontName,
+			topGoogleFontName,
+			bottomGoogleFontName,
+			topTextSize,
+			bottomTextSize,
+			plateThickness,
+			offsetX,
+			offsetY,
+			offsetZ,
+			vrchatMode,
+			baseScale
+		};
+
+		const existingIndex = savedDesigns.findIndex((d) => d.name === name);
+		if (existingIndex >= 0) {
+			savedDesigns[existingIndex] = { name, data: JSON.stringify(designData) };
+			addToast(`Design "${name}" updated!`, 'success');
+		} else {
+			savedDesigns.push({ name, data: JSON.stringify(designData) });
+			addToast(`Design "${name}" saved!`, 'success');
+		}
+
+		localStorage.setItem('badgeDesigns', JSON.stringify(savedDesigns));
+	}
+
+	function loadDesign(design: { name: string; data: string }) {
+		try {
+			const data = JSON.parse(design.data);
+			topText = data.topText ?? 'TOP TEXT';
+			bottomText = data.bottomText ?? 'BOTTOM TEXT';
+			circleColor = data.circleColor ?? '#FF0000';
+			topFontName = data.topFontName ?? 'Helvetiker Regular';
+			bottomFontName = data.bottomFontName ?? 'Helvetiker Regular';
+			topGoogleFontName = data.topGoogleFontName ?? '';
+			bottomGoogleFontName = data.bottomGoogleFontName ?? '';
+			topTextSize = data.topTextSize ?? 0.6;
+			bottomTextSize = data.bottomTextSize ?? 0.6;
+			plateThickness = data.plateThickness ?? 2;
+			offsetX = data.offsetX ?? 23;
+			offsetY = data.offsetY ?? -11.5;
+			offsetZ = data.offsetZ ?? -2;
+			vrchatMode = data.vrchatMode ?? true;
+			baseScale = data.baseScale ?? 1.0;
+
+			// Reload fonts
+			if (topFontName && availableFonts.some((f) => f.name === topFontName)) {
+				loadSelectedFont('top');
+			} else if (topGoogleFontName) {
+				loadGoogleFont('top');
+			}
+			if (bottomFontName && availableFonts.some((f) => f.name === bottomFontName)) {
+				loadSelectedFont('bottom');
+			} else if (bottomGoogleFontName) {
+				loadGoogleFont('bottom');
+			}
+
+			updateCircleColor();
+			updateTopText();
+			updateBottomText();
+			updateBaseScale();
+			updateBadgePosition();
+			addToast(`Design "${design.name}" loaded!`, 'success');
+		} catch (e) {
+			console.error('Failed to load design:', e);
+			addToast('Failed to load design.', 'error');
+		}
+	}
+
+	function deleteDesign(name: string) {
+		if (!confirm(`Delete design "${name}"?`)) return;
+		savedDesigns = savedDesigns.filter((d) => d.name !== name);
+		localStorage.setItem('badgeDesigns', JSON.stringify(savedDesigns));
+		addToast(`Design "${name}" deleted.`, 'info');
+	}
+
+	function resetView() {
+		camera.position.set(0, 0, 150);
+		controls.reset();
+		addToast('View reset', 'info');
 	}
 
 	function toggleGrid() {
@@ -816,7 +942,7 @@
 								id="circle-color"
 								class="h-8 w-full cursor-pointer rounded border-2 border-base-300 bg-transparent"
 								type="color"
-								bind:value={circleColor}
+							(bind):value={circleColor}
 								oninput={updateCircleColor}
 							/>
 						</div>
@@ -841,6 +967,58 @@
 								</button>
 							{/each}
 						</div>
+					</div>
+
+					<div class="divider my-0.5"></div>
+
+					<!-- Plate Thickness -->
+					<div class="form-control w-full">
+						<div class="flex items-center justify-between">
+							<span class="label-text text-xs font-semibold">Plate Thickness</span>
+							<span class="text-xs font-mono text-base-content/70">{plateThickness.toFixed(1)}mm</span>
+						</div>
+						<input
+							type="range"
+							class="range range-xs mt-0.5"
+							min="1"
+							max="5"
+							step="0.5"
+							(bind):value={plateThickness}
+						/>
+					</div>
+
+					<!-- Top Text Size -->
+					<div class="form-control w-full">
+						<div class="flex items-center justify-between">
+							<span class="label-text text-xs font-semibold">Top Text Size</span>
+							<span class="text-xs font-mono text-base-content/70">{(topTextSize * 100).toFixed(0)}%</span>
+						</div>
+						<input
+							type="range"
+							class="range range-xs mt-0.5"
+							min="0.3"
+							max="1.0"
+							step="0.05"
+							(bind):value={topTextSize}
+							oninput={updateTopText}
+						/>
+					</div>
+
+					<!-- Bottom Text Size -->
+					<div class="form-control w-full">
+						<div class="flex items-center justify-between">
+							<span class="label-text text-xs font-semibold">Bottom Text Size</span>
+							<span class="text-xs font-mono text-base-content/70">{(bottomTextSize * 100).toFixed(0)}%</span>
+						</div>
+						<input
+							type="range"
+							class="range range-xs mt-0.5"
+							min="0.3"
+							max="1.0"
+							step="0.05"
+							(bind):value={bottomTextSize}
+							oninput={updateBottomText}
+						/>
 					</div>
 				</div>
 			</div>
@@ -882,7 +1060,7 @@
 									min="0.1"
 									max="3.0"
 									step="0.05"
-									bind:value={baseScale}
+									(bind):value={baseScale}
 									oninput={updateBaseScale}
 								/>
 							</div>
@@ -902,7 +1080,7 @@
 									min="-100"
 									max="100"
 									step="0.5"
-									bind:value={offsetX}
+									(bind):value={offsetX}
 									oninput={updateBadgePosition}
 								/>
 							</div>
@@ -920,7 +1098,7 @@
 									min="-100"
 									max="100"
 									step="0.5"
-									bind:value={offsetY}
+									(bind):value={offsetY}
 									oninput={updateBadgePosition}
 								/>
 							</div>
@@ -938,32 +1116,73 @@
 									min="-100"
 									max="100"
 									step="0.5"
-									bind:value={offsetZ}
+									(bind):value={offsetZ}
 									oninput={updateBadgePosition}
 								/>
 							</div>
 						</div>
 					{/if}
+
+					<div class="divider my-0.5"></div>
+
+					<!-- View Controls -->
+					<div class="form-control w-full">
+						<button class="btn btn-ghost btn-xs w-full" onclick={resetView}>
+							<Icon icon="mdi:camera-flip" class="size-4" />
+							Reset View
+						</button>
+					</div>
+					<div class="form-control w-full">
+						<label class="label cursor-pointer gap-3 py-1.5">
+							<span class="label-text text-xs">Show Grid</span>
+							<input
+								type="checkbox"
+								class="toggle toggle-sm"
+								checked={showGrid}
+								onchange={toggleGrid}
+							/>
+						</label>
+					</div>
 				</div>
 			</div>
 		</div>
 
 		<div class="divider my-0"></div>
 
-		<!-- Export -->
+		<!-- Export & Save -->
 		<div class="flex flex-col gap-2 pt-1">
+			<div class="grid grid-cols-2 gap-2">
+				<button
+					class="btn shadow-sm btn-sm btn-primary"
+					onclick={exportSTL}
+					disabled={exporting}
+				>
+					{#if exporting}
+						<span class="loading loading-spinner loading-xs"></span>
+						Export...
+					{:else}
+						<Icon icon="mdi:download" class="size-4" />
+						Export
+					{/if}
+				</button>
+				<button
+					class="btn shadow-sm btn-sm btn-secondary"
+					onclick={saveDesign}
+				>
+					<Icon icon="mdi:content-save" class="size-4" />
+					Save
+				</button>
+			</div>
 			<button
-				class="btn w-full shadow-sm btn-sm btn-primary"
-				onclick={exportSTL}
-				disabled={exporting}
+				class="btn btn-ghost btn-xs w-full"
+				onclick={() => (activeTab = activeTab === 'saved' ? 'editor' : 'saved')}
 			>
-				{#if exporting}
-					<span class="loading loading-spinner loading-xs"></span>
-					Exporting...
-				{:else}
-					<Icon icon="mdi:download" class="size-4" />
-					Export STL
-				{/if}
+				<Icon icon="mdi:folder-open" class="size-4" />
+				{activeTab === 'saved' ? 'Hide Saved Designs' : `Load Saved (${savedDesigns.length})`}
+			</button>
+			<button class="btn btn-ghost btn-xs w-full" onclick={() => (showHelpModal = true)}>
+				<Icon icon="mdi:help-circle" class="size-4" />
+				Help & Tips
 			</button>
 			<p class="text-center text-[10px] text-base-content/40">
 				Drag to rotate &bull; Scroll to zoom &bull; Right-click to pan
@@ -974,3 +1193,89 @@
 		</div>
 	</div>
 {/snippet}
+
+<!-- Toast Notifications -->
+<div class="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+	{#each toasts as toast (toast.id)}
+		<div
+			class="alert max-w-xs shadow-lg {toast.type === 'success' ? 'alert-success' : toast.type === 'error' ? 'alert-error' : 'alert-info'}"
+			role="status"
+		>
+			<Icon
+				icon={toast.type === 'success' ? 'mdi:check-circle' : toast.type === 'error' ? 'mdi:alert-circle' : 'mdi:information'}
+				class="size-5"
+			/>
+			<span class="text-sm">{toast.message}</span>
+		</div>
+	{/each}
+</div>
+
+<!-- Help Modal -->
+{#if showHelpModal}
+	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onclick={() => (showHelpModal = false)}>
+		<div class="modal-box max-w-lg" onclick={(e) => e.stopPropagation()}>
+			<h3 class="text-lg font-bold">Help & Tips</h3>
+			<div class="py-4 space-y-3 text-sm">
+				<p><strong>Getting Started:</strong></p>
+				<ul class="list-disc pl-5 space-y-1">
+					<li>Edit the top and bottom text in the Text section</li>
+					<li>Choose fonts from the built-in collection, Google Fonts, or upload your own .json font files</li>
+					<li>Customize the status circle color using the color picker or quick presets</li>
+					<li>Use VRChat Base Mode to align your badge with the VRChat badge base model</li>
+				</ul>
+				<p><strong>Navigation:</strong></p>
+				<ul class="list-disc pl-5 space-y-1">
+					<li><strong>Left-click + drag:</strong> Rotate the view</li>
+					<li><strong>Scroll:</strong> Zoom in/out</li>
+					<li><strong>Right-click + drag:</strong> Pan the view</li>
+				</ul>
+				<p><strong>Saving & Loading:</strong></p>
+				<ul class="list-disc pl-5 space-y-1">
+					<li>Click "Save" to store your design in the browser's local storage</li>
+					<li>Access saved designs from the "Load Saved" button</li>
+					<li>Designs persist across browser sessions</li>
+				</ul>
+				<p><strong>Exporting:</strong></p>
+				<ul class="list-disc pl-5 space-y-1">
+					<li>Click "Export" to download your badge as an STL file for 3D printing</li>
+					<li>The exported file is named with a timestamp for easy organization</li>
+					<li>Binary STL format is used for smaller file sizes</li>
+				</ul>
+			</div>
+			<div class="modal-action">
+				<button class="btn btn-primary" onclick={() => (showHelpModal = false)}>Got it!</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- Saved Designs Panel -->
+{#if activeTab === 'saved'}
+	<div class="fixed inset-0 z-40 flex items-center justify-center bg-black/50" onclick={() => (activeTab = 'editor')}">
+		<div class="modal-box max-w-md max-h-[80vh] overflow-y-auto" onclick={(e) => e.stopPropagation()}>
+			<h3 class="text-lg font-bold mb-4">Saved Designs</h3>
+			{#if savedDesigns.length === 0}
+				<p class="text-center text-base-content/60 py-8">No saved designs yet.</p>
+			{:else}
+				<div class="space-y-2">
+					{#each savedDesigns as design (design.name)}
+						<div class="flex items-center justify-between p-3 rounded-lg bg-base-200">
+							<span class="font-medium">{design.name}</span>
+							<div class="flex gap-2">
+								<button class="btn btn-ghost btn-xs" onclick={() => loadDesign(design)} title="Load">
+									<Icon icon="mdi:download" class="size-4" />
+								</button>
+								<button class="btn btn-ghost btn-xs text-error" onclick={() => deleteDesign(design.name)} title="Delete">
+									<Icon icon="mdi:delete" class="size-4" />
+								</button>
+							</div>
+						</div>
+					{/each}
+				</div>
+			{/if}
+			<div class="modal-action">
+				<button class="btn btn-ghost" onclick={() => (activeTab = 'editor')}>Close</button>
+			</div>
+		</div>
+	</div>
+{/if}
